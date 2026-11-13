@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#12365a">
+  <title>物料庫架位查詢</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar"><div><h1>物料庫架位查詢</h1><p id="session-label">請輸入工號登入</p></div><button id="logout" class="quiet hidden">登出</button></header>
+
+    <section id="login-panel" class="panel login-panel">
+      <label for="employee-id">工號（6碼）</label>
+      <input id="employee-id" inputmode="numeric" maxlength="6" autocomplete="username" placeholder="請輸入工號">
+      <div id="pin-wrap" class="hidden">
+        <label for="pin">管理者／開發者 PIN</label>
+        <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="請輸入 PIN">
+      </div>
+      <button id="login" class="primary">登入</button>
+      <p class="hint">一般使用者僅需工號；管理者及開發者需輸入 PIN。</p>
+      <p id="login-message" class="message" role="status"></p>
+    </section>
+
+    <section id="workspace" class="hidden">
+      <section class="panel search-panel">
+        <label for="keyword">輸入件號或儲位</label>
+        <div class="search-row">
+          <input id="keyword" autocomplete="off" placeholder="輸入部分件號／儲位">
+          <button id="scan" class="secondary" title="掃描條碼">掃描</button>
+          <button id="search" class="primary">查詢</button>
+        </div>
+        <div id="suggestions" class="suggestions hidden"></div>
+        <p class="hint">可使用手機相機、藍牙／USB掃描器或手動輸入。</p>
+        <video id="camera" class="camera hidden" playsinline></video>
+        <button id="stop-camera" class="quiet hidden">停止掃描</button>
+      </section>
+
+      <section id="results" class="panel results-panel">
+        <p class="empty">登入後輸入件號或儲位開始查詢。</p>
+      </section>
+
+      <section id="admin-panel" class="panel hidden">
+        <h2>盤點結果上傳（管理者）</h2>
+        <p class="hint">上傳 Big5／CP950 編碼、Tab 分隔的 TXT 檔案。</p>
+        <input id="txt-file" type="file" accept=".txt,text/plain">
+        <button id="upload" class="primary">上傳並比對</button>
+        <pre id="upload-result" class="result-box"></pre>
+      </section>
+      <section id="developer-panel" class="panel hidden">
+        <h2>開發者功能</h2>
+        <p class="hint">人員管理及資料庫連線測試將於下一階段接入。</p>
+        <button id="db-test" class="secondary">測試資料庫連線</button>
+        <pre id="db-result" class="result-box"></pre>
+      </section>
+    </section>
+    <footer>物料庫架位查詢 APP V1.0</footer>
+  </main>
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
