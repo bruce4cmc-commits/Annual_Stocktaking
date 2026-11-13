@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#12365a">
+  <title>DEVELOPER 首次 PIN 初始化</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root { color-scheme: light; font-family: "Segoe UI", "Noto Sans TC", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 14px; background: #f3f6fa; color: #172b42; }
+    main { max-width: 560px; margin: 32px auto; padding: 26px; background: #fff; border: 1px solid #dbe3ed; border-radius: 14px; box-shadow: 0 8px 28px #17324d12; }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    .intro { color: #52657a; line-height: 1.65; margin: 0 0 20px; }
+    label { display: block; margin: 16px 0 6px; font-weight: 650; }
+    input { display: block; width: 100%; min-height: 46px; border: 1px solid #b9c7d7; border-radius: 8px; padding: 10px 12px; font: inherit; font-size: 16px; }
+    input:focus { outline: 2px solid #8bb8eb; border-color: #3978bd; }
+    button { width: 100%; min-height: 48px; margin-top: 22px; border: 0; border-radius: 8px; background: #174f85; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .notice { padding: 12px 14px; background: #fff7e6; border: 1px solid #f0d59b; border-radius: 8px; color: #684b13; line-height: 1.55; margin: 18px 0; }
+    .status { min-height: 48px; margin-top: 16px; padding: 12px; border-radius: 8px; background: #f0f3f7; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .status.ok { background: #eaf6ee; color: #185b32; }
+    .status.err { background: #fff0ef; color: #8b241e; }
+    .small { color: #68798c; font-size: 13px; line-height: 1.55; margin-top: 18px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>DEVELOPER 首次 PIN 初始化</h1>
+  <p class="intro">此頁面只供首次設定一位啟用中 DEVELOPER 的 PIN。初始化成功後，請立即到 Supabase 刪除 <strong>DEVELOPER_BOOTSTRAP_TOKEN</strong> Secret。</p>
+
+  <div class="notice">
+    請在正式 APP 使用的同一個瀏覽器、同一個網站網域開啟此頁面，以沿用該瀏覽器的 Anonymous Auth Session。不要使用不同瀏覽器或無痕視窗重新建立另一個工作階段。
+  </div>
+
+  <form id="bootstrap-form">
+    <label for="employee-id">DEVELOPER 工號（6 位數）</label>
+    <input id="employee-id" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{6}" required>
+
+    <label for="pin">設定 PIN（6 位數）</label>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" pattern="[0-9]{6}" required>
+
+    <label for="pin-confirm">再次輸入 PIN</label>
+    <input id="pin-confirm" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" pattern="[0-9]{6}" required>
+
+    <label for="bootstrap-token">一次性 Bootstrap Token</label>
+    <input id="bootstrap-token" type="password" autocomplete="off" required>
+
+    <button id="submit" type="submit">執行首次初始化</button>
+  </form>
+
+  <div id="status" class="status" role="status" aria-live="polite">頁面就緒。尚未執行任何初始化。</div>
+  <p class="small">安全提醒：PIN 與 Token 僅在本頁表單輸入，頁面不會將其寫入網址、Local Storage 或 Console。請勿截圖或分享包含 Token 的畫面。</p>
+</main>
+
+<script src="./config.js"></script>
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const status = $("status");
+  const button = $("submit");
+
+  function report(message, kind = "") {
+    status.textContent = message;
+    status.className = "status" + (kind ? " " + kind : "");
+  }
+
+  function validSixDigits(value) {
+    return /^[0-9]{6}$/.test(value);
+  }
+
+  $("bootstrap-form").addEventListener("submit", async event => {
+    event.preventDefault();
+
+    const employeeId = $("employee-id").value.trim();
+    const pin = $("pin").value;
+    const pinConfirm = $("pin-confirm").value;
+    const token = $("bootstrap-token").value;
+
+    if (!validSixDigits(employeeId)) {
+      report("工號必須是 6 位數字。", "err");
+      return;
+    }
+    if (!validSixDigits(pin)) {
+      report("PIN 必須是 6 位數字。", "err");
+      return;
+    }
+    if (pin !== pinConfirm) {
+      report("兩次輸入的 PIN 不一致。", "err");
+      return;
+    }
+    if (!token) {
+      report("請輸入 Bootstrap Token。", "err");
+      return;
+    }
+
+    const cfg = window.APP_CONFIG;
+    if (!cfg || !cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY ||
+        cfg.SUPABASE_URL.includes("YOUR_") ||
+        cfg.SUPABASE_ANON_KEY.includes("YOUR_")) {
+      report("找不到正式 Supabase 設定。請確認此頁面與 APP 的 config.js 位於相同網站根目錄。", "err");
+      return;
+    }
+    if (!window.supabase?.createClient) {
+      report("Supabase JS SDK 載入失敗。請確認網路可連線至 jsDelivr CDN。", "err");
+      return;
+    }
+
+    button.disabled = true;
+    report("正在確認瀏覽器登入工作階段…");
+
+    try {
+      const client = window.supabase.createClient(
+        cfg.SUPABASE_URL,
+        cfg.SUPABASE_ANON_KEY
+      );
+
+      const { data: sessionData, error: sessionError } = await client.auth.getSession();
+      if (sessionError) throw new Error("讀取登入工作階段失敗：" + sessionError.message);
+
+      if (!sessionData.session) {
+        const { error: signInError } = await client.auth.signInAnonymously();
+        if (signInError) {
+          throw new Error("建立 Anonymous Session 失敗。請確認 Supabase Anonymous Sign-Ins 已啟用：" + signInError.message);
+        }
+      }
+
+      report("工作階段已就緒，正在執行 DEVELOPER 初始化…");
+
+      const { data, error } = await client.functions.invoke("employee-login", {
+        body: {
+          action: "bootstrap_pin",
+          employee_id: employeeId,
+          pin: pin
+        },
+        headers: {
+          "x-developer-bootstrap-token": token
+        }
+      });
+
+      if (error) {
+        const code = data?.code || "";
+        throw new Error(
+          "初始化呼叫失敗。" +
+          (code ? " 代碼：" + code : "") +
+          " 請至 Supabase Edge Functions Logs 查看伺服器端紀錄；不要分享 Token 或 PIN。"
+        );
+      }
+
+      if (data?.success === true && data?.action === "BOOTSTRAP_COMPLETE") {
+        $("bootstrap-form").reset();
+        report(
+          "初始化成功。\n員工工號：" + data.employee_id +
+          "\n角色：" + data.role +
+          "\n\n請立即到 Supabase Dashboard → Edge Functions → Secrets，刪除 DEVELOPER_BOOTSTRAP_TOKEN。刪除完成前，不要關閉此瀏覽器工作階段。",
+          "ok"
+        );
+        button.disabled = true;
+        return;
+      }
+
+      const code = data?.code || "UNKNOWN_RESULT";
+      const messages = {
+        BOOTSTRAP_TOKEN_INVALID: "Bootstrap Token 不正確。",
+        BOOTSTRAP_ALREADY_USED: "首次初始化條件已不成立；至少一位啟用中的 DEVELOPER 已有 PIN。",
+        DEVELOPER_NOT_ELIGIBLE: "此工號不是啟用中的 DEVELOPER。",
+        DEVELOPER_ALREADY_BOUND_TO_ANOTHER_SESSION: "此 DEVELOPER 已綁定其他 Auth Session。",
+        BIND_FAILED: "Auth UUID 綁定失敗。",
+        INVALID_ARGUMENT: "工號或 PIN 格式不正確。"
+      };
+      report("初始化未成功。\n錯誤代碼：" + code + "\n" + (messages[code] || "請依錯誤代碼檢查 Edge Function Logs。"), "err");
+    } catch (error) {
+      report(error?.message || "發生未知錯誤。", "err");
+    } finally {
+      if (status.classList.contains("ok")) {
+        button.disabled = true;
+      } else {
+        button.disabled = false;
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
