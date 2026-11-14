@@ -150,6 +150,7 @@
     $("session-label").textContent = `工號：${employee}｜${role}`;
     show("admin-panel", role === "ADMIN" || role === "DEVELOPER");
     show("developer-panel", role === "DEVELOPER");
+    if (role === "DEVELOPER") loadEmployees();
   }
 
   $("logout").onclick = () => {
@@ -349,6 +350,44 @@
       $("upload-result").textContent = "上傳失敗：" + e.message;
     }
   };
+
+  // V1.1 employee administration. All mutations are server-authorized.
+  let employeeRows = [];
+  let editingEmployeeId = null;
+  async function employeeAction(action, payload = {}) {
+    await ensureAnonymousSession();
+    const { data, error } = await sb.functions.invoke("employee-login", { body: { action, ...payload } });
+    if (error || !data?.success) throw new Error(data?.code || data?.message || error?.message || "管理操作失敗");
+    return data;
+  }
+  function employeeMessage(text, ok=false) { msg("employee-message", text, ok); }
+  function renderEmployees() {
+    const filter = $("employee-filter").value.trim().toLowerCase();
+    const rows = employeeRows.filter(x => `${x.employee_id} ${x.employee_name}`.toLowerCase().includes(filter));
+    if (!rows.length) { $("employee-rows").innerHTML = '<tr><td colspan="5">沒有符合的人員資料</td></tr>'; return; }
+    $("employee-rows").innerHTML = rows.map(x => `<tr>
+      <td><strong>${esc(x.employee_id)}</strong><br>${esc(x.employee_name)}</td>
+      <td>${esc(x.role)}</td><td class="${x.is_active?'status-active':'status-inactive'}">${x.is_active?'啟用':'停用'}</td>
+      <td class="pin-state">${['ADMIN','DEVELOPER'].includes(x.role) ? (x.pin_configured?'已設定':'未設定') : '不適用'}${x.locked_until && new Date(x.locked_until)>new Date()?'<br>鎖定中':''}</td>
+      <td class="actions"><button class="secondary" data-edit="${esc(x.employee_id)}">編輯</button>
+      ${['ADMIN','DEVELOPER'].includes(x.role)?`<button class="secondary" data-pin="${esc(x.employee_id)}" data-mode="${x.pin_configured?'reset':'init'}">${x.pin_configured?'重設 PIN':'初始化 PIN'}</button>`:''}
+      <button class="${x.is_active?'quiet':'secondary'}" data-active="${esc(x.employee_id)}" data-value="${!x.is_active}">${x.is_active?'停用':'啟用'}</button></td></tr>`).join("");
+    $("employee-rows").querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>editEmployee(b.dataset.edit));
+    $("employee-rows").querySelectorAll("[data-active]").forEach(b=>b.onclick=()=>toggleEmployee(b.dataset.active,b.dataset.value==="true"));
+    $("employee-rows").querySelectorAll("[data-pin]").forEach(b=>b.onclick=()=>managePin(b.dataset.pin,b.dataset.mode));
+  }
+  async function loadEmployees() {
+    try { employeeMessage("正在讀取人員清單…"); const d=await employeeAction("list_employees"); employeeRows=d.employees||[]; renderEmployees(); employeeMessage(`已載入 ${employeeRows.length} 筆人員資料。`,true); }
+    catch(e){ employeeMessage(e.message); }
+  }
+  function resetEmployeeForm() { editingEmployeeId=null; $("new-employee-id").disabled=false; $("new-employee-id").value=""; $("new-employee-name").value=""; $("new-employee-role").value="USER"; $("employee-form-title").textContent="新增人員"; $("employee-save").textContent="新增人員"; show("employee-cancel",false); }
+  function editEmployee(id) { const x=employeeRows.find(r=>r.employee_id===id); if(!x)return; editingEmployeeId=id; $("new-employee-id").value=id; $("new-employee-id").disabled=true; $("new-employee-name").value=x.employee_name; $("new-employee-role").value=x.role; $("employee-form-title").textContent=`修改人員 ${id}`; $("employee-save").textContent="儲存修改"; show("employee-cancel",true); $("new-employee-name").scrollIntoView({behavior:"smooth",block:"center"}); }
+  async function toggleEmployee(id,active) { if(!confirm(`${active?'確定啟用':'確定停用'}工號 ${id}？`))return; try{await employeeAction("set_employee_active",{employee_id:id,is_active:active});employeeMessage("人員狀態已更新。",true);await loadEmployees();}catch(e){employeeMessage(e.message);} }
+  async function managePin(id,mode) { const pin=prompt(`請輸入工號 ${id} 的新 6 位數 PIN：`); if(pin===null)return; if(!/^\d{6}$/.test(pin)){employeeMessage("PIN 必須為 6 位數字。");return;} const confirmPin=prompt("請再次輸入新 PIN："); if(confirmPin!==pin){employeeMessage("兩次 PIN 不一致。");return;} try{await employeeAction(mode==="reset"?"reset_employee_pin":"initialize_employee_pin",{employee_id:id,pin});employeeMessage(mode==="reset"?"PIN 重設成功。":"PIN 初始化成功。",true);await loadEmployees();}catch(e){employeeMessage(e.message);} }
+  $("employee-refresh").onclick=loadEmployees;
+  $("employee-filter").addEventListener("input",renderEmployees);
+  $("employee-cancel").onclick=resetEmployeeForm;
+  $("employee-save").onclick=async()=>{const id=$("new-employee-id").value.trim(),name=$("new-employee-name").value.trim(),targetRole=$("new-employee-role").value;if(!/^\d{6}$/.test(id)||name.length<2||name.length>4){employeeMessage("請輸入 6 位數工號及 2～4 字姓名。");return;}try{if(editingEmployeeId){await employeeAction("update_employee",{employee_id:id,employee_name:name,role:targetRole});employeeMessage("人員資料已更新。",true);}else{await employeeAction("create_employee",{employee_id:id,employee_name:name,role:targetRole});employeeMessage("人員新增成功。",true);}resetEmployeeForm();await loadEmployees();}catch(e){employeeMessage(e.message);}};
 
   $("db-test").onclick = async () => {
     if (!sb) {

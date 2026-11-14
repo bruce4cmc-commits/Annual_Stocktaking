@@ -50,13 +50,22 @@
         <pre id="upload-result" class="result-box"></pre>
       </section>
       <section id="developer-panel" class="panel hidden">
-        <h2>開發者功能</h2>
-        <p class="hint">人員管理及資料庫連線測試將於下一階段接入。</p>
+        <h2>人員資料管理（開發者）</h2>
+        <div class="admin-toolbar"><input id="employee-filter" placeholder="輸入工號或姓名查詢"><button id="employee-refresh" class="secondary">重新整理</button></div>
+        <div id="employee-message" class="message" role="status"></div>
+        <div class="employee-form">
+          <h3 id="employee-form-title">新增人員</h3>
+          <label for="new-employee-id">工號（6碼）</label><input id="new-employee-id" inputmode="numeric" maxlength="6" placeholder="例如 123456">
+          <label for="new-employee-name">姓名（2～4字）</label><input id="new-employee-name" maxlength="4" placeholder="輸入姓名">
+          <label for="new-employee-role">角色</label><select id="new-employee-role"><option value="USER">USER 一般使用者</option><option value="ADMIN">ADMIN 管理者</option><option value="DEVELOPER">DEVELOPER 開發者</option></select>
+          <div class="form-actions"><button id="employee-save" class="primary">新增人員</button><button id="employee-cancel" class="secondary hidden">取消編輯</button></div>
+        </div>
+        <div class="table-wrap"><table class="employee-table"><thead><tr><th>工號／姓名</th><th>角色</th><th>狀態</th><th>PIN</th><th>操作</th></tr></thead><tbody id="employee-rows"><tr><td colspan="5">請載入人員資料</td></tr></tbody></table></div>
         <button id="db-test" class="secondary">測試資料庫連線</button>
         <pre id="db-result" class="result-box"></pre>
       </section>
     </section>
-    <footer>物料庫架位查詢 APP V1.0</footer>
+    <footer>物料庫架位查詢 APP V1.1</footer>
   </main>
   <script src="./config.js"></script>
   <script src="./app.js"></script>
