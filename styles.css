@@ -14,3 +14,15 @@ footer{text-align:center;color:#718091;font-size:.75rem;padding:20px}
 
 /* V1.1 employee administration */
 .admin-toolbar,.form-actions{display:flex;gap:8px;align-items:center;margin:10px 0}.admin-toolbar input{flex:1;min-width:0}.employee-form{border:1px solid #d5dfeb;border-radius:10px;padding:12px;margin:12px 0;display:grid;gap:7px}.employee-form h3{margin:0 0 4px}.employee-form input,.employee-form select{width:100%;box-sizing:border-box;padding:10px;border:1px solid #b8c7d8;border-radius:7px;background:white}.employee-table{min-width:680px;width:100%;border-collapse:collapse}.employee-table th,.employee-table td{padding:9px 7px;border-bottom:1px solid #e2e8f0;text-align:left;vertical-align:middle}.employee-table button{margin:2px;padding:7px 9px}.status-active{color:#167345;font-weight:700}.status-inactive{color:#a33;font-weight:700}.pin-state{white-space:nowrap;font-size:.9em}.employee-table .actions{min-width:180px}
+
+/* V1.2 feature navigation */
+.main-tabs{display:flex;gap:8px;padding:8px;background:#fff;border:1px solid #d8e0e8;border-radius:12px;margin:10px 0 14px;position:sticky;top:8px;z-index:20;box-shadow:0 2px 8px #19334a0a}
+.tab-button{flex:1;min-width:0;background:#edf2f7;color:#29445e;border:1px solid transparent;padding:11px 10px;min-height:48px;font-size:.95rem}
+.tab-button.active{background:#155da8;color:#fff;border-color:#155da8}
+.tab-view{min-width:0}
+@media(max-width:520px){
+  .main-tabs{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));top:auto;margin:0;padding:6px;gap:5px;border-radius:14px;box-shadow:0 3px 18px #102b4530}
+  .tab-button{font-size:.78rem;line-height:1.25;padding:9px 5px;min-height:50px;overflow-wrap:anywhere}
+  #workspace{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+  body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+}

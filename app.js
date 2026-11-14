@@ -143,6 +143,32 @@
     }
   };
 
+  // Main feature tabs: each business function is displayed independently.
+  function activateTab(viewId) {
+    const allowed = {
+      "search-view": true,
+      "upload-view": role === "ADMIN" || role === "DEVELOPER",
+      "people-view": role === "DEVELOPER"
+    };
+    if (!allowed[viewId]) viewId = "search-view";
+    document.querySelectorAll(".tab-view").forEach(view => {
+      view.classList.toggle("hidden", view.id !== viewId);
+    });
+    document.querySelectorAll(".tab-button").forEach(button => {
+      const active = button.dataset.tab === viewId;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    if (viewId === "people-view" && role === "DEVELOPER" && employeeRows.length === 0) {
+      loadEmployees();
+    }
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  document.querySelectorAll(".tab-button").forEach(button => {
+    button.addEventListener("click", () => activateTab(button.dataset.tab));
+  });
+
   function enterWorkspace() {
     show("login-panel", false);
     show("workspace");
@@ -150,6 +176,10 @@
     $("session-label").textContent = `工號：${employee}｜${role}`;
     show("admin-panel", role === "ADMIN" || role === "DEVELOPER");
     show("developer-panel", role === "DEVELOPER");
+    show("main-tabs");
+    show("upload-tab", role === "ADMIN" || role === "DEVELOPER");
+    show("people-tab", role === "DEVELOPER");
+    activateTab("search-view");
     if (role === "DEVELOPER") loadEmployees();
   }
 
@@ -164,6 +194,7 @@
     $("pin").value = "";
     show("pin-wrap", false);
     show("workspace", false);
+    show("main-tabs", false);
     show("login-panel");
     show("logout", false);
     $("session-label").textContent = "請輸入工號登入";

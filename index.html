@@ -25,6 +25,13 @@
     </section>
 
     <section id="workspace" class="hidden">
+      <nav id="main-tabs" class="main-tabs hidden" aria-label="主要功能分頁">
+        <button type="button" class="tab-button active" data-tab="search-view" aria-selected="true">物料庫架位查詢</button>
+        <button type="button" class="tab-button hidden" data-tab="upload-view" id="upload-tab" aria-selected="false">盤點結果上傳</button>
+        <button type="button" class="tab-button hidden" data-tab="people-view" id="people-tab" aria-selected="false">人員資料管理</button>
+      </nav>
+
+      <section id="search-view" class="tab-view">
       <section class="panel search-panel">
         <label for="keyword">輸入件號或儲位</label>
         <div class="search-row">
@@ -42,6 +49,9 @@
         <p class="empty">登入後輸入件號或儲位開始查詢。</p>
       </section>
 
+      </section>
+
+      <section id="upload-view" class="tab-view hidden">
       <section id="admin-panel" class="panel hidden">
         <h2>盤點結果上傳（管理者）</h2>
         <p class="hint">上傳 Big5／CP950 編碼、Tab 分隔的 TXT 檔案。</p>
@@ -49,6 +59,9 @@
         <button id="upload" class="primary">上傳並比對</button>
         <pre id="upload-result" class="result-box"></pre>
       </section>
+      </section>
+
+      <section id="people-view" class="tab-view hidden">
       <section id="developer-panel" class="panel hidden">
         <h2>人員資料管理（開發者）</h2>
         <div class="admin-toolbar"><input id="employee-filter" placeholder="輸入工號或姓名查詢"><button id="employee-refresh" class="secondary">重新整理</button></div>
@@ -64,8 +77,9 @@
         <button id="db-test" class="secondary">測試資料庫連線</button>
         <pre id="db-result" class="result-box"></pre>
       </section>
+      </section>
     </section>
-    <footer>物料庫架位查詢 APP V1.1</footer>
+    <footer>物料庫架位查詢 APP V1.2</footer>
   </main>
   <script src="./config.js"></script>
   <script src="./app.js"></script>
