@@ -148,7 +148,8 @@
     const allowed = {
       "search-view": true,
       "upload-view": role === "ADMIN" || role === "DEVELOPER",
-      "people-view": role === "DEVELOPER"
+      "people-view": role === "DEVELOPER",
+      "master-upload-view": role === "DEVELOPER"
     };
     if (!allowed[viewId]) viewId = "search-view";
     document.querySelectorAll(".tab-view").forEach(view => {
@@ -179,6 +180,8 @@
     show("main-tabs");
     show("upload-tab", role === "ADMIN" || role === "DEVELOPER");
     show("people-tab", role === "DEVELOPER");
+    show("master-upload-tab", role === "DEVELOPER");
+    show("master-upload-panel", role === "DEVELOPER");
     activateTab("search-view");
     if (role === "DEVELOPER") loadEmployees();
   }
@@ -246,9 +249,9 @@
         <div class="material-title">${esc(first.material)}</div>
         <div class="material-description">${esc(first.material_description || "")}</div>
         <div class="info-grid">
-          <div class="info"><small>廠區 Plnt</small><strong>${esc(first.plnt)}</strong></div>
+          <div class="info"><small>廠區</small><strong>${esc(first.plnt)}</strong></div>
           <div class="info"><small>物料群</small><strong>${esc(first.matl_group)}</strong></div>
-          <div class="info"><small>車型 MRPCn</small><strong>${esc(first.mrpcn)}</strong></div>
+          <div class="info"><small>車型</small><strong>${esc(first.mrpcn)}</strong></div>
         </div>
         <div class="table-wrap"><table><thead><tr>
           <th>儲區</th><th>儲位</th><th>盤點量</th><th>盤點人</th>
@@ -419,6 +422,64 @@
   $("employee-filter").addEventListener("input",renderEmployees);
   $("employee-cancel").onclick=resetEmployeeForm;
   $("employee-save").onclick=async()=>{const id=$("new-employee-id").value.trim(),name=$("new-employee-name").value.trim(),targetRole=$("new-employee-role").value;if(!/^\d{6}$/.test(id)||name.length<2||name.length>4){employeeMessage("請輸入 6 位數工號及 2～4 字姓名。");return;}try{if(editingEmployeeId){await employeeAction("update_employee",{employee_id:id,employee_name:name,role:targetRole});employeeMessage("人員資料已更新。",true);}else{await employeeAction("create_employee",{employee_id:id,employee_name:name,role:targetRole});employeeMessage("人員新增成功。",true);}resetEmployeeForm();await loadEmployees();}catch(e){employeeMessage(e.message);}};
+
+
+  // V1.3: Developer-only inventory master replacement. Validate XLSX locally first.
+  let validatedMasterRows = null;
+  const masterHeaders = ["Plnt","Location","Year","Pl.CntDte","原始盤點單","盤點單項目","Bin","Bin Number","Item","Material","ZC","Quantity","Material Description","Matl Group","MRPCn","盤點人"];
+  function excelDateToISO(value) {
+    if (value === null || value === undefined || value === "") return null;
+    if (value instanceof Date && !isNaN(value)) return value.toISOString().slice(0,10);
+    if (typeof value === "number") { const d = XLSX.SSF.parse_date_code(value); if(!d) return null; return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`; }
+    const t=String(value).trim(); if(/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(t)){const a=t.split(/[-/]/);return `${a[0]}-${a[1].padStart(2,"0")}-${a[2].padStart(2,"0")}`;} return null;
+  }
+  function validateMasterRow(r, index) {
+    const [plnt,location,year,date,original,countItem,bin,binNumber,item,material,zc,quantity,description,group,mrpcn,counter]=r;
+    const n=Number(quantity);
+    if (plnt==null || location==null || !String(material??"").trim()) throw new Error(`第 ${index+2} 列：廠區、儲區及 Material 不可空白。`);
+    if (!Number.isInteger(Number(year)) || Number(year)<2000 || Number(year)>2100) throw new Error(`第 ${index+2} 列：Year 格式錯誤。`);
+    if (!Number.isFinite(n)) throw new Error(`第 ${index+2} 列：Quantity 必須為數字。`);
+    if (!Number.isInteger(Number(item))) throw new Error(`第 ${index+2} 列：Item 必須為整數。`);
+    const iso=excelDateToISO(date); if(date && !iso) throw new Error(`第 ${index+2} 列：Pl.CntDte 日期格式錯誤。`);
+    return {plnt:String(plnt),location:String(location),year:Number(year),pl_cnt_dte:iso,original_count_sheet:String(original??""),count_sheet_item:String(countItem??""),bin:String(bin??""),bin_number:String(binNumber??""),item:Number(item),material:String(material).trim(),zc:String(zc??""),quantity:n,material_description:String(description??""),matl_group:String(group??""),mrpcn:String(mrpcn??""),counter_name:String(counter??"")};
+  }
+  $("master-validate").onclick = async () => {
+    validatedMasterRows=null; $("master-replace").disabled=true; show("master-replace",false);
+    const file=$("master-file").files[0];
+    if(role!=="DEVELOPER"){ $("master-preview").textContent="權限不足：僅 DEVELOPER 可更新清冊。"; return; }
+    if(!file){$("master-preview").textContent="請先選擇 Excel 清冊。";return;}
+    if(!/\.xlsx?$/i.test(file.name)){ $("master-preview").textContent="格式錯誤：僅接受 .xlsx 或 .xls。"; return; }
+    try {
+      if(!window.XLSX) throw new Error("Excel 解析元件載入失敗，請確認網路/CDN連線。");
+      const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});
+      const ws=wb.Sheets["原始清冊"] || wb.Sheets[wb.SheetNames[0]];
+      if(!ws) throw new Error("檔案沒有可讀取的工作表。");
+      const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
+      if(!data.length) throw new Error("清冊沒有資料。");
+      const headers=data[0].map(x=>String(x??"").trim());
+      if(headers.length!==masterHeaders.length || masterHeaders.some((h,i)=>headers[i]!==h)) throw new Error("欄位名稱或順序不符。必要欄位："+masterHeaders.join("、"));
+      const source=data.slice(1).filter(r=>r.some(v=>String(v??"").trim()!==""));
+      if(!source.length) throw new Error("清冊沒有有效資料列。");
+      if(source.length>50000) throw new Error("資料筆數超過 50,000 筆上限。");
+      validatedMasterRows=source.map(validateMasterRow);
+      $("master-preview").textContent=`格式檢查通過\n檔案：${file.name}\n工作表：${ws===wb.Sheets["原始清冊"]?"原始清冊":wb.SheetNames[0]}\n有效資料：${validatedMasterRows.length} 筆\n欄位：${masterHeaders.length} 欄\n\n請確認資料筆數無誤，再按「確認覆蓋舊清冊」。`;
+      show("master-replace",true); $("master-replace").disabled=false;
+    } catch(e){ $("master-preview").textContent="格式檢查未通過\n"+e.message; }
+  };
+  $("master-replace").onclick = async () => {
+    if(role!=="DEVELOPER" || !validatedMasterRows) return;
+    const file=$("master-file").files[0];
+    const ok=confirm(`即將以「${file.name}」的 ${validatedMasterRows.length} 筆資料覆蓋目前整份盤點清冊。此操作不可由前端復原。確定繼續？`);
+    if(!ok) return;
+    const btn=$("master-replace"); btn.disabled=true; btn.textContent="正在覆蓋…";
+    try {
+      const {data,error}=await sb.rpc("replace_inventory_master",{p_file_name:file.name,p_rows:validatedMasterRows});
+      if(error) throw error;
+      $("master-preview").textContent=`清冊覆蓋成功\n${JSON.stringify(data,null,2)}`;
+      validatedMasterRows=null; $("master-file").value=""; show("master-replace",false);
+    } catch(e){ $("master-preview").textContent="覆蓋失敗，資料庫交易已回報錯誤。請確認舊清冊仍完整。\n"+e.message; }
+    finally {btn.disabled=false;btn.textContent="確認覆蓋舊清冊";}
+  };
 
   $("db-test").onclick = async () => {
     if (!sb) {

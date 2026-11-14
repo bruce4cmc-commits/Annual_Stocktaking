@@ -26,3 +26,15 @@ footer{text-align:center;color:#718091;font-size:.75rem;padding:20px}
   #workspace{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
   body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
 }
+
+/* V1.3 compact mobile inventory layout */
+@media(max-width:520px){
+ .info-grid{gap:5px}.info{padding:7px 8px}.info small{font-size:.72rem}.table-wrap{margin-top:9px}
+ .table-wrap table{min-width:0;width:100%;table-layout:fixed}
+ .table-wrap th,.table-wrap td{padding:8px 6px;font-size:.88rem;white-space:normal;overflow-wrap:anywhere}
+ .table-wrap th:nth-child(1),.table-wrap td:nth-child(1){width:19%}
+ .table-wrap th:nth-child(2),.table-wrap td:nth-child(2){width:39%}
+ .table-wrap th:nth-child(3),.table-wrap td:nth-child(3){width:21%;text-align:right}
+ .table-wrap th:nth-child(4),.table-wrap td:nth-child(4){width:21%}
+ .material-card{padding:11px}
+}

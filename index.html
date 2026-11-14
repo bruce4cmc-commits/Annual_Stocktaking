@@ -7,6 +7,7 @@
   <title>物料庫架位查詢</title>
   <link rel="stylesheet" href="./styles.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
   <main class="app">
@@ -29,6 +30,7 @@
         <button type="button" class="tab-button active" data-tab="search-view" aria-selected="true">物料庫架位查詢</button>
         <button type="button" class="tab-button hidden" data-tab="upload-view" id="upload-tab" aria-selected="false">盤點結果上傳</button>
         <button type="button" class="tab-button hidden" data-tab="people-view" id="people-tab" aria-selected="false">人員資料管理</button>
+        <button type="button" class="tab-button hidden" data-tab="master-upload-view" id="master-upload-tab" aria-selected="false">盤點清冊管理</button>
       </nav>
 
       <section id="search-view" class="tab-view">
@@ -61,6 +63,19 @@
       </section>
       </section>
 
+      <section id="master-upload-view" class="tab-view hidden">
+        <section id="master-upload-panel" class="panel hidden">
+          <h2>盤點清冊管理（DEVELOPER 專用）</h2>
+          <p class="hint">選擇 Excel 清冊（.xlsx／.xls）。系統先檢查欄位及資料，檢查通過後才會詢問是否覆蓋現有清冊。</p>
+          <label for="master-file">盤點清冊檔案</label>
+          <input id="master-file" type="file" accept=".xlsx,.xls">
+          <button id="master-validate" class="primary">檢查檔案格式</button>
+          <div id="master-preview" class="result-box" aria-live="polite">尚未選擇檔案。</div>
+          <button id="master-replace" class="primary hidden" disabled>確認覆蓋舊清冊</button>
+          <p class="hint">覆蓋採資料庫交易處理；未確認、格式錯誤或寫入失敗時，舊清冊應維持不變。</p>
+        </section>
+      </section>
+
       <section id="people-view" class="tab-view hidden">
       <section id="developer-panel" class="panel hidden">
         <h2>人員資料管理（開發者）</h2>
@@ -79,7 +94,7 @@
       </section>
       </section>
     </section>
-    <footer>物料庫架位查詢 APP V1.2</footer>
+    <footer>物料庫架位查詢 APP V1.3</footer>
   </main>
   <script src="./config.js"></script>
   <script src="./app.js"></script>
