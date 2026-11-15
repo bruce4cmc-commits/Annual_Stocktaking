@@ -19,12 +19,12 @@
   let role = null;
   let timer = null;
 
-// TEMP S04 USER permission test
-window.runS04UserPermissionTest = async () => {
-  console.log("S04 role:", role);
+// TEMP S04-S05 permission test
+window.runPermissionTest = async () => {
+  console.log("Permission test role:", role);
 
-  if (role !== "USER") {
-    console.error("測試中止：目前登入角色不是 USER");
+  if (!["USER", "ADMIN"].includes(role)) {
+    console.error("測試中止：僅接受 USER 或 ADMIN");
     return;
   }
 
@@ -36,7 +36,8 @@ window.runS04UserPermissionTest = async () => {
     }
   );
 
-  console.log("S04 USER permission result:", {
+  console.log("Permission test result:", {
+    role,
     data,
     error: error
       ? {
