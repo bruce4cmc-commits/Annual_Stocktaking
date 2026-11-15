@@ -18,6 +18,35 @@
   let employee = null;
   let role = null;
   let timer = null;
+
+// TEMP S04 USER permission test
+window.runS04UserPermissionTest = async () => {
+  console.log("S04 role:", role);
+
+  if (role !== "USER") {
+    console.error("測試中止：目前登入角色不是 USER");
+    return;
+  }
+
+  const { data, error } = await sb.rpc(
+    "replace_inventory_master",
+    {
+      p_file_name: "permission_test.xlsx",
+      p_rows: []
+    }
+  );
+
+  console.log("S04 USER permission result:", {
+    data,
+    error: error
+      ? {
+          code: error.code,
+          message: error.message
+        }
+      : null
+  });
+};
+  
   let stream = null;
   let pinRequired = false;
 
