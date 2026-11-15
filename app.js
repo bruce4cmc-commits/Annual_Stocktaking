@@ -18,36 +18,6 @@
   let employee = null;
   let role = null;
   let timer = null;
-
-// TEMP S04-S05 permission test
-window.runPermissionTest = async () => {
-  console.log("Permission test role:", role);
-
-  if (!["USER", "ADMIN"].includes(role)) {
-    console.error("測試中止：僅接受 USER 或 ADMIN");
-    return;
-  }
-
-  const { data, error } = await sb.rpc(
-    "replace_inventory_master",
-    {
-      p_file_name: "permission_test.xlsx",
-      p_rows: []
-    }
-  );
-
-  console.log("Permission test result:", {
-    role,
-    data,
-    error: error
-      ? {
-          code: error.code,
-          message: error.message
-        }
-      : null
-  });
-};
-  
   let stream = null;
   let pinRequired = false;
 
