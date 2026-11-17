@@ -30,14 +30,12 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   }[c]));
 
-  // Barcode format: [)> 06 P + material code + whitespace/terminator.
+  // Barcode rules: linear barcode returns the material code directly.
+  // QR Code uses the label format [)> 06 P{PART No.} ...; extract only PART No.
   const normalizeBarcode = raw => {
     const value = String(raw ?? "").replace(/[\r\n\t]+$/g, "").trim();
-    if (value.startsWith("[)> 06 P")) {
-      const body = value.slice(8);
-      const end = body.search(/\s/);
-      return (end < 0 ? body : body.slice(0, end)).trim();
-    }
+    const qrPrefix = value.match(/^\[\)>\s*06\s+P([^\s;]+)/i);
+    if (qrPrefix) return qrPrefix[1].trim();
     return value;
   };
 
@@ -307,31 +305,68 @@
     }, 250);
   });
 
+  let barcodeReader = null;
+  let barcodeControls = null;
+  let scanLocked = false;
+
+  async function stopBarcodeScan() {
+    try { barcodeControls?.stop(); } catch (_) {}
+    barcodeControls = null;
+    try { barcodeReader?.reset(); } catch (_) {}
+    barcodeReader = null;
+    stream?.getTracks().forEach(track => track.stop());
+    stream = null;
+    if ($("camera")) { $("camera").pause(); $("camera").srcObject = null; }
+    show("camera", false);
+    show("stop-camera", false);
+    scanLocked = false;
+  }
+
   $("scan").onclick = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      msg("login-message", "此瀏覽器不支援相機掃描，請使用外接掃描器或手動輸入。");
+      msg("login-message", "此瀏覽器不支援相機掃描，請使用 HTTPS、外接掃描器或手動輸入。");
+      return;
+    }
+    if (!window.ZXingBrowser?.BrowserMultiFormatReader) {
+      msg("login-message", "條碼辨識元件載入失敗，請重新整理頁面或使用外接掃描器。");
       return;
     }
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
-      });
-      $("camera").srcObject = stream;
-      await $("camera").play();
+      await stopBarcodeScan();
+      const Reader = window.ZXingBrowser.BrowserMultiFormatReader;
+      barcodeReader = new Reader();
       show("camera");
       show("stop-camera");
-      msg("login-message", "相機已啟動。此版本先提供相機預覽；條碼解碼器將於掃描模組階段加入。");
+      msg("login-message", "相機啟動中，請將一維條碼或 QR Code 對準掃描框。");
+      barcodeControls = await barcodeReader.decodeFromVideoDevice(
+        undefined,
+        $("camera"),
+        async (result, error, controls) => {
+          if (!result || scanLocked) return;
+          scanLocked = true;
+          const raw = result.getText();
+          const parsed = normalizeBarcode(raw);
+          if (!parsed) {
+            scanLocked = false;
+            msg("login-message", "已讀取條碼，但無法取得件號，請改用手動輸入。");
+            return;
+          }
+          await stopBarcodeScan();
+          $("keyword").value = parsed;
+          show("suggestions", false);
+          msg("login-message", `掃描成功，件號：${parsed}，正在查詢…`, true);
+          await search();
+        }
+      );
+      stream = $("camera").srcObject;
     } catch (e) {
-      alert("無法啟動相機：" + e.message);
+      await stopBarcodeScan();
+      msg("login-message", "無法啟動條碼掃描：" + (e?.message || String(e)));
     }
   };
 
-  $("stop-camera").onclick = () => {
-    stream?.getTracks().forEach(track => track.stop());
-    stream = null;
-    show("camera", false);
-    show("stop-camera", false);
-  };
+  $("stop-camera").onclick = stopBarcodeScan;
+  window.addEventListener("pagehide", stopBarcodeScan);
 
   $("upload").onclick = async () => {
     const file = $("txt-file").files[0];
