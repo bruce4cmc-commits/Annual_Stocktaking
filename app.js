@@ -316,52 +316,80 @@
     barcodeReader = null;
     stream?.getTracks().forEach(track => track.stop());
     stream = null;
-    if ($("camera")) { $("camera").pause(); $("camera").srcObject = null; }
+    if ($("camera")) {
+      try { $("camera").pause(); } catch (_) {}
+      $("camera").srcObject = null;
+    }
     show("camera", false);
     show("stop-camera", false);
     scanLocked = false;
   }
 
+  const scannerMsg = (text, ok = false) => msg("scanner-message", text, ok);
+
   $("scan").onclick = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      msg("login-message", "此瀏覽器不支援相機掃描，請使用 HTTPS、外接掃描器或手動輸入。");
+      scannerMsg("此瀏覽器無法使用相機。請確認使用 HTTPS，或改用手動輸入／外接掃描器。");
       return;
     }
-    if (!window.ZXingBrowser?.BrowserMultiFormatReader) {
-      msg("login-message", "條碼辨識元件載入失敗，請重新整理頁面或使用外接掃描器。");
+    const Reader = window.ZXingBrowser?.BrowserMultiFormatReader;
+    if (!Reader) {
+      scannerMsg("條碼辨識元件載入失敗。請確認網路可連線至 jsDelivr CDN，重新整理後再試。");
       return;
     }
     try {
+      // Keep camera acquisition in the direct click flow for iOS Safari compatibility.
       await stopBarcodeScan();
-      const Reader = window.ZXingBrowser.BrowserMultiFormatReader;
       barcodeReader = new Reader();
+      scannerMsg("正在啟動相機，請允許 Safari 使用相機…");
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" } }
+      });
+      const video = $("camera");
+      video.setAttribute("autoplay", "");
+      video.setAttribute("muted", "");
+      video.setAttribute("playsinline", "");
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
       show("camera");
       show("stop-camera");
-      msg("login-message", "相機啟動中，請將一維條碼或 QR Code 對準掃描框。");
-      barcodeControls = await barcodeReader.decodeFromVideoDevice(
-        undefined,
-        $("camera"),
-        async (result, error, controls) => {
+      await video.play();
+      scannerMsg("相機已啟動，請將一維條碼或 QR Code 對準鏡頭。", true);
+
+      // Decode the already-authorized stream instead of asking ZXing to open a second camera stream.
+      barcodeControls = await barcodeReader.decodeFromStream(
+        stream,
+        video,
+        async (result, error) => {
           if (!result || scanLocked) return;
           scanLocked = true;
           const raw = result.getText();
           const parsed = normalizeBarcode(raw);
           if (!parsed) {
             scanLocked = false;
-            msg("login-message", "已讀取條碼，但無法取得件號，請改用手動輸入。");
+            scannerMsg("已讀取條碼，但無法取得件號，請改用手動輸入。");
             return;
           }
           await stopBarcodeScan();
           $("keyword").value = parsed;
           show("suggestions", false);
-          msg("login-message", `掃描成功，件號：${parsed}，正在查詢…`, true);
+          scannerMsg(`掃描成功，件號：${parsed}，正在查詢…`, true);
           await search();
         }
       );
-      stream = $("camera").srcObject;
     } catch (e) {
       await stopBarcodeScan();
-      msg("login-message", "無法啟動條碼掃描：" + (e?.message || String(e)));
+      const name = e?.name || "";
+      const detail = e?.message || String(e);
+      const guidance = name === "NotAllowedError" ? "請在 iPhone 設定或 Safari 網站設定中允許相機權限。"
+        : name === "NotFoundError" ? "找不到可用相機。"
+        : name === "NotReadableError" ? "相機可能正被其他程式使用，請關閉其他相機 App 後重試。"
+        : name === "OverconstrainedError" ? "後置相機條件不相容，請改用一般相機設定重試。"
+        : "請確認 Safari 相機權限及 HTTPS 網址。";
+      scannerMsg(`相機啟動失敗（${name || "Error"}）：${detail}。${guidance}`);
+      console.error("Barcode scanner start failed:", e);
     }
   };
 

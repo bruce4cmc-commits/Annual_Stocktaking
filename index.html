@@ -43,7 +43,8 @@
         </div>
         <div id="suggestions" class="suggestions hidden"></div>
         <p class="hint">可使用手機相機、藍牙／USB掃描器或手動輸入。</p>
-        <video id="camera" class="camera hidden" playsinline></video>
+        <video id="camera" class="camera hidden" autoplay muted playsinline webkit-playsinline></video>
+        <p id="scanner-message" class="message" role="status" aria-live="polite"></p>
         <button id="stop-camera" class="quiet hidden">停止掃描</button>
       </section>
 
