@@ -30,12 +30,29 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   }[c]));
 
-  // Barcode rules: linear barcode returns the material code directly.
-  // QR Code uses the label format [)> 06 P{PART No.} ...; extract only PART No.
+  // Barcode rules:
+  // - Linear barcode: use the decoded text as the material code.
+  // - QR label: [)> 06 followed by an ASCII GS/RS separator and P{PART No.}.
+  //   ZXing returns control separators (e.g. GS, RS) rather than ordinary spaces.
+  //   Never send the full structured QR payload to inventory search.
   const normalizeBarcode = raw => {
-    const value = String(raw ?? "").replace(/[\r\n\t]+$/g, "").trim();
-    const qrPrefix = value.match(/^\[\)>\s*06\s+P([^\s;]+)/i);
-    if (qrPrefix) return qrPrefix[1].trim();
+    const value = String(raw ?? "").replace(/[\u0000-\u001f\u007f]/g, ch =>
+      /[\u001c-\u001f]/.test(ch) ? " " : ch
+    ).trim();
+
+    // Recognize the structured logistics QR payload, including hidden ASCII separators.
+    if (/^\[\)>/.test(value)) {
+      const fields = value.replace(/[\u001c-\u001f]/g, " ").split(/[\s;]+/).filter(Boolean);
+      const markerIndex = fields.findIndex(field => /^P$/i.test(field));
+      if (markerIndex >= 0 && fields[markerIndex + 1]) {
+        return fields[markerIndex + 1].trim();
+      }
+      const partField = fields.find(field => /^P[A-Z0-9][A-Z0-9._/-]*$/i.test(field));
+      if (partField) return partField.slice(1).trim();
+      return "";
+    }
+
+    // A linear barcode is already the material code.
     return value;
   };
 
