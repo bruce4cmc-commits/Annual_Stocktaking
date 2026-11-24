@@ -28,6 +28,7 @@
     <section id="workspace" class="hidden">
       <nav id="main-tabs" class="main-tabs hidden" aria-label="主要功能分頁">
         <button type="button" class="tab-button active" data-tab="search-view" aria-selected="true">物料庫架位查詢</button>
+        <button type="button" class="tab-button" data-tab="result-view" id="result-tab" aria-selected="false">盤點結果查詢</button>
         <button type="button" class="tab-button hidden" data-tab="upload-view" id="upload-tab" aria-selected="false">盤點結果上傳</button>
         <button type="button" class="tab-button hidden" data-tab="people-view" id="people-tab" aria-selected="false">人員資料管理</button>
         <button type="button" class="tab-button hidden" data-tab="master-upload-view" id="master-upload-tab" aria-selected="false">盤點清冊管理</button>
@@ -52,6 +53,51 @@
         <p class="empty">登入後輸入件號或儲位開始查詢。</p>
       </section>
 
+      </section>
+
+      <section id="result-view" class="tab-view hidden">
+        <section class="panel">
+          <h2>盤點結果查詢</h2>
+          <p id="result-query-state" class="hint">正在確認查詢權限…</p>
+          <div id="result-query-form" class="hidden">
+            <div class="result-search-grid">
+              <div><label for="result-material">Material／件號</label><input id="result-material" placeholder="輸入完整或部分件號"></div>
+              <div><label for="result-bin">Bin／儲位</label><input id="result-bin" placeholder="輸入完整或部分儲位"></div>
+            </div>
+            <div class="form-actions">
+              <button id="result-search" class="primary">查詢</button>
+              <button id="result-clear" class="secondary">清除條件</button>
+            </div>
+            <p id="result-search-message" class="message" role="status"></p>
+            <div id="result-meta" class="hint"></div>
+            <div id="result-table" class="table-wrap"><p class="empty">請輸入 Material 或 Bin 查詢。</p></div>
+            <div class="result-pagination">
+              <button id="result-prev" class="secondary" disabled>上一頁</button>
+              <span id="result-page-label">第 0 / 0 頁</span>
+              <button id="result-next" class="secondary" disabled>下一頁</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="result-upload-panel" class="panel hidden">
+          <h2>盤點結果上傳（DEVELOPER 專用）</h2>
+          <p class="hint">僅接受 Excel .xlsx／.xls，讀取「盈虧清冊」工作表。資料欄位為 A～L 及 N～T，共 19 欄；M「盈虧金額」及 U「ABS」不匯入。</p>
+          <label for="result-file">盤點結果 Excel 檔案</label>
+          <input id="result-file" type="file" accept=".xlsx,.xls">
+          <button id="result-validate" class="primary">檢查檔案及預覽</button>
+          <div id="result-upload-preview" class="result-box" aria-live="polite">尚未選擇檔案。</div>
+          <div id="result-upload-sample" class="table-wrap hidden"></div>
+          <button id="result-replace" class="primary hidden" disabled>確認覆蓋盤點結果</button>
+          <p id="result-upload-message" class="message" role="status"></p>
+        </section>
+
+        <section id="result-settings-panel" class="panel hidden">
+          <h2>盤點結果查詢設定</h2>
+          <label class="switch-label"><input type="checkbox" id="result-query-enabled"> 開放所有啟用中員工查詢盤點結果</label>
+          <p class="hint">關閉時，一般員工及管理者無法查詢；DEVELOPER 可調整此設定。</p>
+          <button id="result-setting-save" class="secondary">儲存查詢設定</button>
+          <p id="result-setting-message" class="message" role="status"></p>
+        </section>
       </section>
 
       <section id="upload-view" class="tab-view hidden">
@@ -95,7 +141,7 @@
       </section>
       </section>
     </section>
-    <footer>物料庫架位查詢 APP V1.4</footer>
+    <footer>物料庫架位查詢 APP V1.5</footer>
   </main>
   <script src="./config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>

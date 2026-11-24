@@ -42,3 +42,22 @@ footer{text-align:center;color:#718091;font-size:.75rem;padding:20px}
 /* V1.4 barcode scanner */
 .camera{max-height:420px;object-fit:cover;transform:scaleX(1)}
 #stop-camera{margin-top:8px;width:100%}
+
+/* V1.5 inventory result query and upload */
+.result-search-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.result-pagination{display:flex;align-items:center;justify-content:center;gap:14px;margin:14px 0}
+.result-pagination span{font-weight:700;font-size:.9rem}
+.result-data-table{min-width:1500px;width:100%;border-collapse:collapse}
+.result-data-table th,.result-data-table td{padding:9px 10px;border-bottom:1px solid #e1e7ed;font-size:.88rem;white-space:nowrap}
+.result-data-table th{position:sticky;top:0;background:#eaf0f6}
+.switch-label{display:flex;align-items:center;gap:10px;font-weight:700}
+.switch-label input{width:24px;min-height:24px;margin:0}
+#result-replace{margin-top:12px;width:100%}
+#result-upload-sample{max-height:360px;overflow:auto}
+@media(max-width:520px){
+  .result-search-grid{grid-template-columns:1fr;gap:0}
+  .result-pagination{gap:8px}
+  .result-pagination button{padding:8px 10px;font-size:.85rem}
+  .main-tabs{overflow-x:auto;justify-content:flex-start}
+  .tab-button{flex:0 0 auto;min-width:76px}
+}

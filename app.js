@@ -136,7 +136,7 @@
         throw new Error("PIN 輸入錯誤次數過多，帳號已暫時鎖定。");
       }
       if (data?.code === "BIND_COOLDOWN") {
-        throw new Error("此帳號目前處於 24 小時綁定冷卻期間，請使用原本登入的瀏覽器工作階段。");
+        throw new Error("裝置綁定未成功，請重新登入；若持續發生請聯絡 DEVELOPER。");
       }
       if (error) {
         throw new Error(data?.message || data?.code || error.message || "登入服務呼叫失敗。");
@@ -164,7 +164,8 @@
       "search-view": true,
       "upload-view": role === "ADMIN" || role === "DEVELOPER",
       "people-view": role === "DEVELOPER",
-      "master-upload-view": role === "DEVELOPER"
+      "master-upload-view": role === "DEVELOPER",
+      "result-view": true
     };
     if (!allowed[viewId]) viewId = "search-view";
     document.querySelectorAll(".tab-view").forEach(view => {
@@ -177,6 +178,10 @@
     });
     if (viewId === "people-view" && role === "DEVELOPER" && employeeRows.length === 0) {
       loadEmployees();
+    }
+    if (viewId === "result-view") {
+      loadResultQueryState();
+      loadResultUploadStatus();
     }
     window.scrollTo({ top: 0, behavior: "auto" });
   }
@@ -197,6 +202,8 @@
     show("people-tab", role === "DEVELOPER");
     show("master-upload-tab", role === "DEVELOPER");
     show("master-upload-panel", role === "DEVELOPER");
+    show("result-upload-panel", role === "DEVELOPER");
+    show("result-settings-panel", role === "DEVELOPER");
     activateTab("search-view");
     if (role === "DEVELOPER") loadEmployees();
   }
@@ -559,6 +566,306 @@
       validatedMasterRows=null; $("master-file").value=""; show("master-replace",false);
     } catch(e){ $("master-preview").textContent="覆蓋失敗，資料庫交易已回報錯誤。請確認舊清冊仍完整。\n"+e.message; }
     finally {btn.disabled=false;btn.textContent="確認覆蓋舊清冊";}
+  };
+
+
+  // V1.5: Inventory result query, upload, and developer-controlled availability.
+  const resultHeaders = [
+    "Plnt", "SLoc", "Matl Group", "MRPC", "Material", "料名",
+    "庫房盤點量(含虛擬)", "線邊合計盤點量", "WIP量", "合計盤點量",
+    "帳面量", "盈虧數量", "Bin", "Product Line", "Line location",
+    "Bin Number", "PhysInvDoc", "Item", "Year"
+  ];
+  const resultFields = [
+    "plnt", "sloc", "matl_group", "mrpc", "material", "material_name",
+    "warehouse_qty", "line_side_qty", "wip_qty", "total_count_qty",
+    "book_qty", "variance_qty", "bin", "product_line", "line_location",
+    "bin_number", "phys_inv_doc", "item", "year"
+  ];
+  const resultIntegerFields = new Set([
+    "warehouse_qty", "line_side_qty", "wip_qty",
+    "total_count_qty", "book_qty", "variance_qty"
+  ]);
+  let resultRowsValidated = null;
+  let resultPage = 1;
+  let resultTotalPages = 0;
+  let resultLastCriteria = null;
+
+  function resultMessage(id, text, ok = false) {
+    msg(id, text, ok);
+  }
+
+  async function loadResultQueryState() {
+    if (!sb || !employee) return;
+    $("result-query-state").textContent = "正在讀取盤點結果查詢設定…";
+    try {
+      const { data, error } = await sb
+        .from("system_settings")
+        .select("setting_value")
+        .eq("setting_key", "inventory_result_query_enabled")
+        .maybeSingle();
+      if (error) throw error;
+      const enabled = data?.setting_value === true;
+      show("result-query-form", enabled);
+      $("result-query-state").textContent = enabled
+        ? "盤點結果查詢已開放。請輸入 Material 或 Bin，至少填寫一項。"
+        : "目前尚未開放盤點結果查詢，請洽 DEVELOPER。";
+      if (role === "DEVELOPER") {
+        $("result-query-enabled").checked = enabled;
+        resultMessage("result-setting-message", enabled ? "目前為開放狀態。" : "目前為關閉狀態。", true);
+      }
+    } catch (e) {
+      $("result-query-state").textContent = "讀取查詢設定失敗：" + (e.message || e);
+    }
+  }
+
+  async function loadResultUploadStatus() {
+    if (!sb || !employee) return;
+    try {
+      const { data, error } = await sb.rpc("get_inventory_result_upload_status");
+      if (error) throw error;
+      const latest = data?.latest_upload;
+      $("result-meta").textContent = latest
+        ? `最後上傳：${new Date(latest.uploaded_at).toLocaleString("zh-TW")}｜檔案：${latest.file_name}｜上傳人：${latest.uploaded_by_name || latest.uploaded_by_employee_id}｜筆數：${latest.uploaded_rows.toLocaleString()}`
+        : "尚無成功上傳紀錄。";
+    } catch (e) {
+      $("result-meta").textContent = "讀取上傳資訊失敗：" + (e.message || e);
+    }
+  }
+
+  function renderInventoryResult(data) {
+    const rows = data?.data || [];
+    resultPage = Number(data?.page || 1);
+    resultTotalPages = Number(data?.total_pages || 0);
+    $("result-page-label").textContent = `第 ${resultTotalPages ? resultPage : 0} / ${resultTotalPages} 頁｜共 ${Number(data?.total || 0).toLocaleString()} 筆`;
+    $("result-prev").disabled = resultPage <= 1;
+    $("result-next").disabled = resultPage >= resultTotalPages;
+    if (!rows.length) {
+      $("result-table").innerHTML = '<p class="empty">查無符合資料。</p>';
+      return;
+    }
+    const columns = [
+      ["material","Material"],["material_name","料名"],["plnt","Plnt"],
+      ["sloc","SLoc"],["matl_group","Matl Group"],["mrpc","MRPC"],
+      ["warehouse_qty","庫房盤點量"],["line_side_qty","線邊合計盤點量"],
+      ["wip_qty","WIP量"],["total_count_qty","合計盤點量"],
+      ["book_qty","帳面量"],["variance_qty","盈虧數量"],
+      ["bin","Bin"],["product_line","Product Line"],
+      ["line_location","Line location"],["bin_number","Bin Number"],
+      ["phys_inv_doc","PhysInvDoc"],["item","Item"],["year","Year"]
+    ];
+    let html = '<table class="result-data-table"><thead><tr>' +
+      columns.map(c => `<th>${esc(c[1])}</th>`).join("") +
+      '</tr></thead><tbody>';
+    for (const row of rows) {
+      html += "<tr>" + columns.map(c => `<td>${esc(row[c[0]] ?? "")}</td>`).join("") + "</tr>";
+    }
+    html += "</tbody></table>";
+    $("result-table").innerHTML = html;
+  }
+
+  async function runInventoryResultSearch(page = 1) {
+    if (!sb) return resultMessage("result-search-message", "尚未設定 Supabase。");
+    const material = $("result-material").value.trim();
+    const bin = $("result-bin").value.trim();
+    if (!material && !bin) {
+      $("result-table").innerHTML = '<p class="empty">請至少輸入 Material 或 Bin 查詢條件。</p>';
+      resultMessage("result-search-message", "Material 與 Bin 不可同時空白。");
+      return;
+    }
+    resultLastCriteria = { material, bin };
+    resultMessage("result-search-message", "查詢中…");
+    $("result-search").disabled = true;
+    try {
+      const { data, error } = await sb.rpc("search_inventory_result", {
+        p_material: material || null,
+        p_bin: bin || null,
+        p_page: page
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "查詢失敗。");
+      renderInventoryResult(data);
+      resultMessage("result-search-message", `查詢完成，共 ${Number(data.total || 0).toLocaleString()} 筆。`, true);
+    } catch (e) {
+      resultMessage("result-search-message", "查詢失敗：" + (e.message || e));
+    } finally {
+      $("result-search").disabled = false;
+    }
+  }
+
+  $("result-search").onclick = () => runInventoryResultSearch(1);
+  $("result-material").addEventListener("keydown", e => { if (e.key === "Enter") runInventoryResultSearch(1); });
+  $("result-bin").addEventListener("keydown", e => { if (e.key === "Enter") runInventoryResultSearch(1); });
+  $("result-prev").onclick = () => runInventoryResultSearch(Math.max(1, resultPage - 1));
+  $("result-next").onclick = () => runInventoryResultSearch(Math.min(resultTotalPages, resultPage + 1));
+  $("result-clear").onclick = () => {
+    $("result-material").value = "";
+    $("result-bin").value = "";
+    resultPage = 1;
+    $("result-table").innerHTML = '<p class="empty">請輸入 Material 或 Bin 查詢。</p>';
+    $("result-page-label").textContent = "第 0 / 0 頁";
+    $("result-prev").disabled = true;
+    $("result-next").disabled = true;
+    resultMessage("result-search-message", "");
+  };
+
+  $("result-setting-save").onclick = async () => {
+    if (role !== "DEVELOPER") return;
+    const enabled = $("result-query-enabled").checked;
+    $("result-setting-save").disabled = true;
+    try {
+      const { data, error } = await sb.rpc("set_inventory_result_query_enabled", {
+        p_enabled: enabled
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "設定儲存失敗。");
+      resultMessage("result-setting-message", enabled ? "已開放盤點結果查詢。" : "已關閉盤點結果查詢。", true);
+      await loadResultQueryState();
+    } catch (e) {
+      resultMessage("result-setting-message", "設定失敗：" + (e.message || e));
+      await loadResultQueryState();
+    } finally {
+      $("result-setting-save").disabled = false;
+    }
+  };
+
+  function excelCellText(value) {
+    if (value === null || value === undefined) return "";
+    return String(value).trim();
+  }
+
+  function validateInventoryResultRow(row, rowIndex) {
+    const output = {};
+    for (let i = 0; i < resultFields.length; i++) {
+      const field = resultFields[i];
+      const value = row[i];
+      const text = excelCellText(value);
+      if (field === "material") {
+        if (!text) throw new Error(`第 ${rowIndex + 2} 列：Material 不可空白。`);
+        output[field] = text;
+      } else if (resultIntegerFields.has(field)) {
+        if (!text) {
+          output[field] = null;
+        } else {
+          if (!/^-?\d+$/.test(text)) throw new Error(`第 ${rowIndex + 2} 列：${resultHeaders[i]} 必須為整數，空白可留空。`);
+          const n = Number(text);
+          if (!Number.isSafeInteger(n) || n < -2147483648 || n > 2147483647) {
+            throw new Error(`第 ${rowIndex + 2} 列：${resultHeaders[i]} 超出 PostgreSQL integer 範圍。`);
+          }
+          output[field] = n;
+        }
+      } else if (field === "year") {
+        if (!text) output[field] = null;
+        else {
+          if (!/^-?\d+$/.test(text)) throw new Error(`第 ${rowIndex + 2} 列：Year 必須為整數。`);
+          const n = Number(text);
+          if (!Number.isInteger(n) || n < -32768 || n > 32767) throw new Error(`第 ${rowIndex + 2} 列：Year 超出 smallint 範圍。`);
+          output[field] = n;
+        }
+      } else {
+        output[field] = text || null;
+      }
+    }
+    return output;
+  }
+
+  function renderResultUploadSample(rows) {
+    const cols = ["material", "material_name", "warehouse_qty", "line_side_qty", "wip_qty", "total_count_qty", "book_qty", "variance_qty", "bin", "year"];
+    const labels = ["Material", "料名", "庫房盤點量", "線邊合計盤點量", "WIP量", "合計盤點量", "帳面量", "盈虧數量", "Bin", "Year"];
+    const sample = rows.slice(0, 10);
+    let html = '<table><thead><tr>' + labels.map(x => `<th>${esc(x)}</th>`).join("") + '</tr></thead><tbody>';
+    sample.forEach(row => { html += "<tr>" + cols.map(c => `<td>${esc(row[c] ?? "")}</td>`).join("") + "</tr>"; });
+    html += "</tbody></table>";
+    $("result-upload-sample").innerHTML = html;
+    show("result-upload-sample", true);
+  }
+
+  $("result-validate").onclick = async () => {
+    resultRowsValidated = null;
+    $("result-replace").disabled = true;
+    show("result-replace", false);
+    show("result-upload-sample", false);
+    const file = $("result-file").files[0];
+    if (role !== "DEVELOPER") {
+      $("result-upload-preview").textContent = "權限不足：僅 DEVELOPER 可上傳盤點結果。";
+      return;
+    }
+    if (!file) {
+      $("result-upload-preview").textContent = "請先選擇 Excel 檔案。";
+      return;
+    }
+    if (!/\.xlsx?$/i.test(file.name)) {
+      $("result-upload-preview").textContent = "格式錯誤：僅接受 .xlsx 或 .xls。";
+      return;
+    }
+    try {
+      if (!window.XLSX) throw new Error("Excel 解析元件載入失敗，請確認網路/CDN連線。");
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false, raw: true });
+      const ws = wb.Sheets["盈虧清冊"];
+      if (!ws) throw new Error("找不到必要工作表「盈虧清冊」。");
+      const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true });
+      if (!matrix.length) throw new Error("「盈虧清冊」工作表沒有內容。");
+      const headers = matrix[0].map(excelCellText);
+      // Verify the complete source A-U layout, while importing only A-L and N-T.
+      const sourceHeaders = [
+        "Plnt","SLoc","Matl Group","MRPC","Material","料名",
+        "庫房盤點量(含虛擬)","線邊合計盤點量","WIP量","合計盤點量",
+        "帳面量","盈虧數量","盈虧金額","Bin","Product Line",
+        "Line location","Bin Number","PhysInvDoc","Item","Year","ABS"
+      ];
+      if (headers.length < 21 || sourceHeaders.some((h, i) => headers[i] !== h) || headers.slice(21).some(h => h !== "")) {
+        throw new Error("「盈虧清冊」欄位名稱或順序不符。必要來源欄位 A～U：" + sourceHeaders.join("、"));
+      }
+      const sourceRows = matrix.slice(1).filter(r => r.some(v => excelCellText(v) !== ""));
+      if (!sourceRows.length) throw new Error("「盈虧清冊」沒有有效資料列。");
+      if (sourceRows.length > 50000) throw new Error("資料筆數超過 50,000 筆上限。");
+      resultRowsValidated = sourceRows.map((row, i) => {
+        const selected = row.slice(0, 12).concat(row.slice(13, 20));
+        if (selected.length !== 19) throw new Error(`第 ${i + 2} 列欄位不足 19 欄。`);
+        return validateInventoryResultRow(selected, i);
+      });
+      $("result-upload-preview").textContent =
+        `格式檢查通過\n檔案：${file.name}\n工作表：盈虧清冊\n有效資料：${resultRowsValidated.length.toLocaleString()} 筆\n匯入欄位：19 欄（A～L、N～T）\n略過欄位：M 盈虧金額、U ABS\n數量欄位：整數；空白保留 NULL\n\n下方顯示前 10 筆預覽。請確認後再執行整批覆蓋。`;
+      renderResultUploadSample(resultRowsValidated);
+      show("result-replace", true);
+      $("result-replace").disabled = false;
+    } catch (e) {
+      $("result-upload-preview").textContent = "格式檢查未通過\n" + (e.message || e);
+    }
+  };
+
+  $("result-replace").onclick = async () => {
+    if (role !== "DEVELOPER" || !resultRowsValidated) return;
+    const file = $("result-file").files[0];
+    const count = resultRowsValidated.length;
+    if (!confirm(`即將以「${file.name}」的 ${count.toLocaleString()} 筆盤點結果，覆蓋目前全部盤點結果。此操作不可由前端復原。確定繼續？`)) return;
+    const button = $("result-replace");
+    button.disabled = true;
+    button.textContent = "正在覆蓋，請勿關閉頁面…";
+    resultMessage("result-upload-message", "正在驗證並寫入資料庫…");
+    try {
+      const { data, error } = await sb.rpc("replace_inventory_result", {
+        p_file_name: file.name,
+        p_rows: resultRowsValidated
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "資料庫拒絕上傳。");
+      $("result-upload-preview").textContent =
+        `盤點結果覆蓋成功\n檔案：${data.file_name}\n匯入筆數：${Number(data.uploaded_rows).toLocaleString()}\n上傳人：${data.uploaded_by}\n上傳時間：${new Date().toLocaleString("zh-TW")}`;
+      resultMessage("result-upload-message", "盤點結果已成功整批覆蓋。", true);
+      resultRowsValidated = null;
+      $("result-file").value = "";
+      show("result-replace", false);
+      show("result-upload-sample", false);
+      await loadResultUploadStatus();
+      await loadResultQueryState();
+    } catch (e) {
+      resultMessage("result-upload-message", "上傳失敗，資料庫應保留原有盤點結果。原因：" + (e.message || e));
+      await loadResultUploadStatus();
+    } finally {
+      button.disabled = false;
+      button.textContent = "確認覆蓋盤點結果";
+    }
   };
 
   $("db-test").onclick = async () => {
