@@ -61,3 +61,6 @@ footer{text-align:center;color:#718091;font-size:.75rem;padding:20px}
   .main-tabs{overflow-x:auto;justify-content:flex-start}
   .tab-button{flex:0 0 auto;min-width:76px}
 }
+
+/* V1.5: Negative inventory values are highlighted in red */
+.negative-value{color:#c62828!important;font-weight:700!important}

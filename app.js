@@ -633,6 +633,18 @@
     }
   }
 
+  function isNegativeNumber(value) {
+    if (value === null || value === undefined || String(value).trim() === "") return false;
+    const number = Number(value);
+    return Number.isFinite(number) && number < 0;
+  }
+
+  function resultCell(value) {
+    const text = value ?? "";
+    const negativeClass = isNegativeNumber(text) ? ' class="negative-value"' : "";
+    return `<td${negativeClass}>${esc(text)}</td>`;
+  }
+
   function renderInventoryResult(data) {
     const rows = data?.data || [];
     resultPage = Number(data?.page || 1);
@@ -658,7 +670,7 @@
       columns.map(c => `<th>${esc(c[1])}</th>`).join("") +
       '</tr></thead><tbody>';
     for (const row of rows) {
-      html += "<tr>" + columns.map(c => `<td>${esc(row[c[0]] ?? "")}</td>`).join("") + "</tr>";
+      html += "<tr>" + columns.map(c => resultCell(row[c[0]])).join("") + "</tr>";
     }
     html += "</tbody></table>";
     $("result-table").innerHTML = html;
@@ -774,7 +786,7 @@
     const labels = ["Material", "料名", "庫房盤點量", "線邊合計盤點量", "WIP量", "合計盤點量", "帳面量", "盈虧數量", "Bin", "Year"];
     const sample = rows.slice(0, 10);
     let html = '<table><thead><tr>' + labels.map(x => `<th>${esc(x)}</th>`).join("") + '</tr></thead><tbody>';
-    sample.forEach(row => { html += "<tr>" + cols.map(c => `<td>${esc(row[c] ?? "")}</td>`).join("") + "</tr>"; });
+    sample.forEach(row => { html += "<tr>" + cols.map(c => resultCell(row[c])).join("") + "</tr>"; });
     html += "</tbody></table>";
     $("result-upload-sample").innerHTML = html;
     show("result-upload-sample", true);
