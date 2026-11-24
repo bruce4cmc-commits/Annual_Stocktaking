@@ -639,10 +639,13 @@
     return Number.isFinite(number) && number < 0;
   }
 
-  function resultCell(value) {
+  function resultCell(value, alignRight = false) {
     const text = value ?? "";
-    const negativeClass = isNegativeNumber(text) ? ' class="negative-value"' : "";
-    return `<td${negativeClass}>${esc(text)}</td>`;
+    const classes = [];
+    if (alignRight) classes.push("numeric-cell");
+    if (isNegativeNumber(text)) classes.push("negative-value");
+    const classAttr = classes.length ? ` class="${classes.join(" ")}"` : "";
+    return `<td${classAttr}>${esc(text)}</td>`;
   }
 
   function renderInventoryResult(data) {
@@ -657,20 +660,20 @@
       return;
     }
     const columns = [
-      ["material","Material"],["material_name","料名"],["plnt","Plnt"],
-      ["sloc","SLoc"],["matl_group","Matl Group"],["mrpc","MRPC"],
-      ["warehouse_qty","庫房盤點量"],["line_side_qty","線邊合計盤點量"],
-      ["wip_qty","WIP量"],["total_count_qty","合計盤點量"],
-      ["book_qty","帳面量"],["variance_qty","盈虧數量"],
-      ["bin","Bin"],["product_line","Product Line"],
-      ["line_location","Line location"],["bin_number","Bin Number"],
-      ["phys_inv_doc","PhysInvDoc"],["item","Item"],["year","Year"]
+      ["material","Material",false],["material_name","料名",false],["plnt","Plnt",false],
+      ["sloc","SLoc",false],["matl_group","Matl Group",false],["mrpc","MRPC",false],
+      ["warehouse_qty","庫房盤點量",true],["line_side_qty","線邊合計盤點量",true],
+      ["wip_qty","WIP量",true],["total_count_qty","合計盤點量",true],
+      ["book_qty","帳面量",true],["variance_qty","盈虧數量",true],
+      ["bin","Bin",false],["product_line","Product Line",false],
+      ["line_location","Line location",false],["bin_number","Bin Number",false],
+      ["phys_inv_doc","PhysInvDoc",false],["item","Item",false],["year","Year",true]
     ];
     let html = '<table class="result-data-table"><thead><tr>' +
-      columns.map(c => `<th>${esc(c[1])}</th>`).join("") +
+      columns.map(c => `<th${c[2] ? ' class="numeric-cell"' : ""}>${esc(c[1])}</th>`).join("") +
       '</tr></thead><tbody>';
     for (const row of rows) {
-      html += "<tr>" + columns.map(c => resultCell(row[c[0]])).join("") + "</tr>";
+      html += "<tr>" + columns.map(c => resultCell(row[c[0]], c[2])).join("") + "</tr>";
     }
     html += "</tbody></table>";
     $("result-table").innerHTML = html;
@@ -783,10 +786,11 @@
 
   function renderResultUploadSample(rows) {
     const cols = ["material", "material_name", "warehouse_qty", "line_side_qty", "wip_qty", "total_count_qty", "book_qty", "variance_qty", "bin", "year"];
+    const numericFields = new Set(["warehouse_qty", "line_side_qty", "wip_qty", "total_count_qty", "book_qty", "variance_qty", "year"]);
     const labels = ["Material", "料名", "庫房盤點量", "線邊合計盤點量", "WIP量", "合計盤點量", "帳面量", "盈虧數量", "Bin", "Year"];
     const sample = rows.slice(0, 10);
-    let html = '<table><thead><tr>' + labels.map(x => `<th>${esc(x)}</th>`).join("") + '</tr></thead><tbody>';
-    sample.forEach(row => { html += "<tr>" + cols.map(c => resultCell(row[c])).join("") + "</tr>"; });
+    let html = '<table class="result-data-table result-preview-table"><thead><tr>' + labels.map((x, i) => `<th${numericFields.has(cols[i]) ? ' class="numeric-cell"' : ""}>${esc(x)}</th>`).join("") + '</tr></thead><tbody>';
+    sample.forEach(row => { html += "<tr>" + cols.map(c => resultCell(row[c], numericFields.has(c))).join("") + "</tr>"; });
     html += "</tbody></table>";
     $("result-upload-sample").innerHTML = html;
     show("result-upload-sample", true);

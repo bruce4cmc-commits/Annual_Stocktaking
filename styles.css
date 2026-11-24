@@ -64,3 +64,7 @@ footer{text-align:center;color:#718091;font-size:.75rem;padding:20px}
 
 /* V1.5: Negative inventory values are highlighted in red */
 .negative-value{color:#c62828!important;font-weight:700!important}
+
+/* V1.5: Align numeric inventory result values to the right */
+.result-data-table th.numeric-cell,
+.result-data-table td.numeric-cell{ text-align:right; font-variant-numeric:tabular-nums; }
